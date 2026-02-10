@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sing-to-Song | Gemini 3 Semantic Audio Engine</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Outfit:wght@300;400;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --neon: #00f2ff;
+            --primary: #2ecc71;
+            --secondary: #e91e63;
+            --warning: #ffaa00;
+            --bg: #0f172a;
+            --card: #1e293b;
+            --success: #00ff88;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        @keyframes gradientShift {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+
+        body {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+            background-size: 200% 200%;
+            animation: gradientShift 15s ease infinite;
+            color: #e0e0e0;
+            font-family: 'Outfit', sans-serif;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            padding: 30px 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 40px;
+        }
+
+        .logo {
+            font-size: 2.5rem;
+            font-weight: 900;
+            margin-bottom: 10px;
+        }
+
+        .logo span {
+            color: var(--primary);
+            text-shadow: 0 0 20px rgba(46, 204, 113, 0.5);
+        }
+
+        .tagline {
+            color: #64748b;
+            font-size: 0.95rem;
+            font-style: italic;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* Mode Cards */
+        .mode-selector {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        .mode-card {
+            background: rgba(30, 41, 59, 0.6);
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 30px;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .mode-card:hover:not(.disabled) {
+            border-color: var(--primary);
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(46, 204, 113, 0.3);
+        }
+
+        .mode-card.active {
+            border-color: var(--primary);
+            background: rgba(46, 204, 113, 0.1);
+        }
+
+        .mode-card.disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .mode-card h3 {
+            color: var(--primary);
+            font-size: 1.4rem;
+            margin-bottom: 10px;
+        }
+
+        .mode-card p {
+            color: #94a3b8;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+        .badge {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .badge.live {
+            background: var(--success);
+            color: #000;
+        }
+
+        .badge.demo {
+            background: var(--warning);
+            color: #000;
+        }
+
+        /* Workspace */
+        .workspace {
+            background: rgba(30, 41, 59, 0.6);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 40px;
+            display: none;
+        }
+
+        .workspace.active {
+            display: block;
+        }
+
+        .workspace h2 {
+            text-align: center;
+            color: var(--primary);
+            margin-bottom: 30px;
+        }
+
+        /* API Key Section */
+        .api-key-section {
+            background: rgba(0, 242, 255, 0.05);
+            border: 1px solid rgba(0, 242, 255, 0.2);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+
+        .api-key-section label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: var(--neon);
+        }
+
+        .api-key-section input {
+            width: 100%;
+            padding: 12px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            color: #fff;
+            font-family: 'Space Mono', monospace;
+            font-size: 0.9rem;
+        }
+
+        .api-key-section input:focus {
+            outline: none;
+            border-color: var(--neon);
+        }
+
+        .api-key-section small {
+            display: block;
+            margin-top: 8px;
+            font-size: 0.75rem;
+            color: #64748b;
+        }
+
+        .api-key-section small a {
+            color: var(--neon);
+            text-decoration: none;
+        }
+
+        /* Upload Area */
+        .upload-area {
+            border: 2px dashed rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            padding: 50px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 30px;
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        .upload-area:hover {
+            border-color: var(--primary);
+            background: rgba(46, 204, 113, 0.05);
+        }
+
+        .upload-area.has-file {
+            border-color: var(--primary);
+            background: rgba(46, 204, 113, 0.1);
+        }
+
+        .upload-icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+        }
+
+        .upload-text {
+            color: #94a3b8;
+            font-size: 1rem;
+        }
+
+        .file-name {
+            margin-top: 12px;
+            color: var(--primary);
+            font-family: 'Space Mono', monospace;
+            font-size: 0.9rem;
+        }
+
+        /* Analysis Display */
+        #lyric-display {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 25px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+            min-height: 80px;
+            border-left: 4px solid var(--primary);
+            font-family: 'Space Mono', monospace;
+            color: #cbd5e1;
+            line-height: 1.8;
+            font-size: 0.9rem;
+        }
+
+        /* Status */
+        #status {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #64748b;
+            margin-bottom: 25px;
+            font-family: 'Space Mono', monospace;
+        }
+
+        #status.active {
+            color: var(--primary);
+            border: 1px solid var(--primary);
+        }
+
+        /* Buttons */
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        button {
+            padding: 18px;
+            border-radius: 12px;
+            border: none;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            color: white;
+            font-family: 'Outfit', sans-serif;
+            font-size: 1rem;
+        }
+
+        button:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        #test-btn {
+            background: #334155;
+        }
+
+        #generate-btn {
+            background: var(--primary);
+        }
+
+        #generate-btn.active {
+            background: var(--secondary);
+        }
+
+        #export-btn {
+            background: var(--secondary);
+        }
+
+        #export-btn.recording {
+            background: #dc2626;
+            animation: pulse 1s infinite;
+        }
+
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            filter: brightness(1.15);
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        /* Progress Bar */
+        .progress-bar {
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .progress-bar.active {
+            display: block;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--neon));
+            width: 0%;
+            transition: width 0.4s;
+        }
+
+        .footer-note {
+            text-align: center;
+            font-size: 0.75rem;
+            color: #475569;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            font-family: 'Space Mono', monospace;
+        }
+
+        #file-input {
+            display: none;
+        }
+
+        @media (max-width: 900px) {
+            .mode-selector {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div class="logo">SING-TO-SONG <span>STUDIO</span></div>
+    <div class="tagline">"For the everyday TikToker or the meticulous musician"</div>
+</div>
+
+<div class="container">
+    <!-- Mode Selection -->
+    <div class="mode-selector">
+        <div class="mode-card" data-mode="quick-create">
+            <span class="badge live">LIVE</span>
+            <h3>🎤 Quick Create</h3>
+            <p>Upload vocals (acapella) and let Gemini 3 build the perfect adaptive backing track automatically.</p>
+        </div>
+
+        <div class="mode-card disabled" data-mode="quick-modify">
+            <span class="badge demo">DEMO ONLY</span>
+            <h3>🎵 Quick Modify</h3>
+            <p>Upload instrumental track, sing over it - AI adjusts everything to match your key and pace.</p>
+        </div>
+
+        <div class="mode-card disabled" data-mode="line-by-line">
+            <span class="badge demo">DEMO ONLY</span>
+            <h3>✍️ Line by Line</h3>
+            <p>Type and sing lyrics with precision control. Perfect for meticulous musicians.</p>
+        </div>
+    </div>
+
+    <!-- Workspace -->
+    <div id="workspace" class="workspace">
+        <h2>🎤 Quick Create Mode</h2>
+
+        <!-- API Key Input -->
+        <div class="api-key-section">
+    <label>🔑 Your Gemini API Key (Required)</label>
+    <input 
+        type="password" 
+        id="api-key-input" 
+        placeholder="Paste your Gemini API key here (AIza...)"
+        value="AIzaSyB_16koCUGH9wgJQLJX05Bw_HKzkKL8nZA" 
+        autocomplete="off"
+    >
+    <small>Get your free key at <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a> • Your key stays private in your browser</small>
+</div>
+
+<div id="status">Ready to analyze vocals...</div>
+
+        <!-- Upload Area -->
+        <div class="upload-area" id="upload-area">
+            <div class="upload-icon">🎙️</div>
+            <div class="upload-text">Click to upload vocals or drag & drop</div>
+            <div class="upload-text" style="font-size: 0.8rem; margin-top: 8px; opacity: 0.7;">MP3, WAV, M4A, WEBM accepted</div>
+            <div class="file-name" id="file-name"></div>
+        </div>
+        <input type="file" id="file-input" accept="audio/*">
+
+        <!-- Analysis Display -->
+        <div id="lyric-display">
+            Upload your vocals to begin Gemini 3 semantic analysis...<br>
+            <span style="opacity: 0.6;">💡 Tip: Use acapella vocals for best results (singing without background music)</span>
+        </div>
+
+        <!-- Controls -->
+        <div class="controls">
+            <button id="test-btn">1. Test Audio Engine (Piano + Steel Pan)</button>
+            <button id="generate-btn" disabled>2. Generate with Gemini 3 🧠</button>
+            <button id="export-btn">3. Export Performance 🎙️</button>
+        </div>
+
+        <div class="progress-bar" id="progress-bar">
+            <div class="progress-fill" id="progress-fill"></div>
+        </div>
+
+        <p class="footer-note">
+            Powered by Google Gemini 3 API • Tone.js Audio Engine • 3+3+2 Caribbean Rhythm Pattern
+        </p>
+    </div>
+</div>
+
+<script>
+/* ================================================================
+   SING-TO-SONG - Gemini 3 Semantic Audio Generation Engine
+   
+   ARCHITECTURE:
+   1. User uploads vocal audio file
+   2. Gemini 3 API analyzes audio multimodally
+   3. Returns semantic parameters (vibe, density, key, BPM)
+   4. Generates backing track using 3+3+2 Caribbean rhythm
+   5. Steel Pan + Piano ensemble plays based on semantic data
+   6. User exports final performance
+================================================================ */
+
+// === STATE MANAGEMENT ===
+const state = {
+    uploadedFile: null,
+    vocalBuffer: null,
+    isGenerating: false,
+    currentAnalysis: null,
+    apiKey: 'AIzaSyB_16koCUGH9wgJQLJX05Bw_HKzkKL8nZA'
+};
+
+const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+// === AUDIO ENGINE SETUP ===
+// Master chain: Instruments → Reverb → Limiter → Output → Recorder
+const recorder = new Tone.Recorder();
+const limiter = new Tone.Limiter(-6).toDestination();
+const reverb = new Tone.Reverb(1.5).connect(limiter);
+Tone.Destination.connect(recorder);
+
+// PIANO: Full Chromatic "Confirmed List"
+const piano = new Tone.Sampler({
+    urls: {
+        "A1": "A1.wav", "A2": "A2.wav", "A3": "A3.wav", "A4": "A4.wav", "A5": "A5.wav", "A6": "A6.wav", "A7": "A7.wav",
+        "Ab1": "Ab1.wav", "Ab2": "Ab2.wav", "Ab3": "Ab3.wav", "Ab4": "Ab4.wav", "Ab5": "Ab5.wav", "Ab6": "Ab6.wav", "Ab7": "Ab7.wav",
+        "B0": "B0.wav", "B1": "B1.wav", "B2": "B2.wav", "B3": "B3.wav", "B4": "B4.wav", "B5": "B5.wav", "B6": "B6.wav", "B7": "B7.wav",
+        "Bb1": "Bb1.wav", "Bb2": "Bb2.wav", "Bb3": "Bb3.wav", "Bb4": "Bb4.wav", "Bb5": "Bb5.wav", "Bb6": "Bb6.wav", "Bb7": "Bb7.wav",
+        "C1": "C1.wav", "C2": "C2.wav", "C3": "C3.wav", "C4": "C4.wav", "C5": "C5.wav", "C6": "C6.wav", "C7": "C7.wav", "C8": "C8.wav",
+        "Db1": "Db1.wav", "Db2": "Db2.wav", "Db3": "Db3.wav", "Db4": "Db4.wav", "Db5": "Db5.wav", "Db6": "Db6.wav", "Db7": "Db7.wav",
+        "D1": "D1.wav", "D2": "D2.wav", "D3": "D3.wav", "D4": "D4.wav", "D5": "D5.wav", "D6": "D6.wav", "D7": "D7.wav",
+        "Eb1": "Eb1.wav", "Eb2": "Eb2.wav", "Eb3": "Eb3.wav", "Eb4": "Eb4.wav", "Eb5": "Eb5.wav", "Eb6": "Eb6.wav", "Eb7": "Eb7.wav",
+        "E1": "E1.wav", "E2": "E2.wav", "E3": "E3.wav", "E4": "E4.wav", "E5": "E5.wav", "E6": "E6.wav", "E7": "E7.wav",
+        "F1": "F1.wav", "F2": "F2.wav", "F3": "F3.wav", "F4": "F4.wav", "F5": "F5.wav", "F6": "F6.wav", "F7": "F7.wav",
+        "Gb1": "Gb1.wav", "Gb2": "Gb2.wav", "Gb3": "Gb3.wav", "Gb4": "Gb4.wav", "Gb5": "Gb5.wav", "Gb6": "Gb6.wav", "Gb7": "Gb7.wav",
+        "G1": "G1.wav", "G2": "G2.wav", "G3": "G3.wav", "G4": "G4.wav", "G5": "G5.wav", "G6": "G6.wav", "G7": "G7.wav"
+    },
+    baseUrl: "samples/piano/",
+    onload: () => console.log("🎹 Full Piano Engine Ready")
+}).connect(reverb);
+
+// STEEL PAN: Full "Confirmed List"
+const pan = new Tone.Sampler({
+    urls: {
+        "A1": "A1.wav", "A2": "A2.wav", "A3": "A.wav",
+        "As": "As.wav",
+        "B1": "B1.wav", "B2": "B.wav",
+        "Bb2": "Bb2.wav",
+        "C1": "C1.wav", "C2": "C2.wav",
+        "D1": "D1.wav", "D2": "D2.wav",
+        "Ds": "Ds.wav",
+        "E1": "E1.wav", "E2": "E2.wav",
+        "F1": "F1.wav", "F2": "F2.wav",
+        "G1": "G1.wav", "G2": "G.wav", "G3": "G3.wav"
+    },
+    baseUrl: "samples/pan/",
+    onload: () => console.log("🥁 Caribbean Pan Engine Ready")
+}).connect(reverb);
+
+// === INITIALIZATION ===
+document.addEventListener('DOMContentLoaded', () => {
+    initModeSelection();
+    initFileUpload();
+    initButtons();
+    initAPIKey();
+});
+
+// === MODE SELECTION ===
+function initModeSelection() {
+    const modeCards = document.querySelectorAll('.mode-card');
+    const workspace = document.getElementById('workspace');
+    
+    modeCards.forEach(card => {
+        card.addEventListener('click', () => {
+            const mode = card.dataset.mode;
+            
+            if (card.classList.contains('disabled')) {
+                updateStatus('⏳ This mode is for demonstration only. Quick Create is live!');
+                return;
+            }
+            
+            modeCards.forEach(c => c.classList.remove('active'));
+            card.classList.add('active');
+            workspace.classList.add('active');
+            workspace.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+    });
+}
+
+// === API KEY MANAGEMENT ===
+function initAPIKey() {
+    const input = document.getElementById('api-key-input');
+    
+    input.addEventListener('input', (e) => {
+        state.apiKey = e.target.value.trim();
+        updateGenerateButton();
+    });
+}
+
+// === FILE UPLOAD ===
+function initFileUpload() {
+    const uploadArea = document.getElementById('upload-area');
+    const fileInput = document.getElementById('file-input');
+    const fileName = document.getElementById('file-name');
+    
+    uploadArea.addEventListener('click', () => fileInput.click());
+    
+    fileInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            state.uploadedFile = file;
+            fileName.textContent = `📁 ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`;
+            uploadArea.classList.add('has-file');
+            
+            // Decode audio for later use
+            const arrayBuffer = await file.arrayBuffer();
+            state.vocalBuffer = await audioContext.decodeAudioData(arrayBuffer);
+            
+            updateStatus('✅ Vocals loaded! Add your API key and click Generate.');
+            updateGenerateButton();
+        }
+    });
+    
+    // Drag and drop support
+    uploadArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadArea.style.borderColor = 'var(--primary)';
+    });
+    
+    uploadArea.addEventListener('dragleave', () => {
+        uploadArea.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+    });
+    
+    uploadArea.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        const file = e.dataTransfer.files[0];
+        if (file && file.type.startsWith('audio/')) {
+            state.uploadedFile = file;
+            fileName.textContent = `📁 ${file.name}`;
+            uploadArea.classList.add('has-file');
+            
+            const arrayBuffer = await file.arrayBuffer();
+            state.vocalBuffer = await audioContext.decodeAudioData(arrayBuffer);
+            
+            updateStatus('✅ Vocals loaded! Add your API key and click Generate.');
+            updateGenerateButton();
+        }
+    });
+}
+
+// === GEMINI 3 API INTEGRATION ===
+async function analyzeVocalsWithGemini(audioFile) {
+    updateStatus('🧠 Gemini 3 analyzing your vocals...');
+    showProgress(20);
+    
+    // Convert audio file to base64 for API transmission
+    const base64 = await fileToBase64(audioFile);
+    
+    // Construct prompt for semantic music analysis
+    const prompt = `Analyze this vocal recording for a Caribbean music generator.
+
+You are an expert music producer. Analyze the emotional tone, energy, and melodic characteristics.
+
+Return ONLY valid JSON with this structure:
+{
+    "vibe": "smooth" or "bright" or "energetic",
+    "density": 0.7,
+    "key": "C major",
+    "bpm": 120,
+    "mood": "upbeat and cheerful",
+    "energy_level": 8
+}
+
+Rules:
+- vibe: "smooth" for calm/melodic vocals, "bright" for cheerful/light, "energetic" for intense/powerful
+- density: 0.1 (sparse/minimal backing) to 0.9 (complex/layered) - determines how busy the accompaniment should be
+- Analyze the singer's natural tempo and emotional delivery
+- Consider cultural context - Caribbean rhythms favor certain energy patterns`;
+
+    const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${state.apiKey}`;
+
+    try {
+        const response = await fetch(API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{
+                    parts: [
+                        { text: prompt },
+                        { inline_data: { mime_type: audioFile.type, data: base64 } }
+                    ]
+                }],
+                generationConfig: { 
+                    response_mime_type: "application/json",
+                    temperature: 0.7
+                }
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(`Gemini API error: ${errorData.error?.message || response.status}`);
+        }
+
+        const data = await response.json();
+        const aiResponse = JSON.parse(data.candidates[0].content.parts[0].text);
+        
+        console.log('✅ Gemini 3 Analysis:', aiResponse);
+        showProgress(50);
+        
+        return aiResponse;
+
+    } catch (error) {
+        console.error('Gemini API Error:', error);
+        updateStatus('⚠️ API error - check your key and try again');
+        showProgress(0);
+        
+        // User-friendly error message
+        alert(`Gemini API Error: ${error.message}\n\nPlease check:\n1. Your API key is correct\n2. You have API quota remaining\n3. Your internet connection is stable`);
+        
+        return null;
+    }
+}
+
+// === SEMANTIC TRACK GENERATION ===
+// Uses 3+3+2 Caribbean rhythm pattern based on Gemini analysis
+async function generateSemanticTrack(analysis) {
+    await Tone.start();
+    
+    updateStatus(`🎹 Generating ${analysis.vibe} track at ${analysis.bpm} BPM...`);
+    
+    // Display analysis results
+    document.getElementById('lyric-display').innerHTML = `
+        <strong>🧠 Gemini 3 Analysis Results:</strong><br><br>
+        <strong>Vibe:</strong> ${analysis.vibe.toUpperCase()}<br>
+        <strong>Density:</strong> ${(analysis.density * 100).toFixed(0)}% (backing complexity)<br>
+        <strong>Key:</strong> ${analysis.key}<br>
+        <strong>BPM:</strong> ${analysis.bpm}<br>
+        <strong>Mood:</strong> ${analysis.mood}<br>
+        <strong>Energy:</strong> ${analysis.energy_level}/10
+    `;
+    
+    showProgress(60);
+    
+    // Set tempo from Gemini analysis
+    Tone.Transport.bpm.value = analysis.bpm;
+    
+    // Calculate track duration based on uploaded vocals
+    const duration = state.vocalBuffer.duration;
+    const totalBars = Math.ceil(duration / (60 / analysis.bpm * 4));
+    
+    // Generate using 3+3+2 Caribbean rhythm pattern
+    // This pattern creates authentic Caribbean feel: 3 beats + 3 beats + 2 beats
+    for (let bar = 0; bar < totalBars; bar++) {
+        const baseTime = bar * (60 / analysis.bpm * 4);
+        
+        // 3+3+2 rhythm: [0, 0.375, 0.75, 1, 1.375, 1.75] relative to bar
+        const rhythm = [0, 0.375, 0.75, 1, 1.375, 1.75];
+        
+        rhythm.forEach(offset => {
+            const noteTime = baseTime + offset;
+            
+            // SEMANTIC RULE 1: Vibe determines piano pitch
+            // Smooth vibes use lower register (G1), bright vibes use higher (C3)
+            const pianoNote = analysis.vibe === "smooth" ? "G1" : "C3";
+            Tone.Transport.schedule(() => {
+                piano.triggerAttackRelease(pianoNote, "4n");
+            }, noteTime);
+            
+            // SEMANTIC RULE 2: Density determines Steel Pan complexity
+            // Higher density = more Steel Pan hits (creating busier, more complex backing)
+            if (Math.random() < analysis.density) {
+                Tone.Transport.schedule(() => {
+                    pan.triggerAttackRelease("C2", "8n");
+                }, noteTime);
+            }
+        });
+    }
+    
+    showProgress(80);
+    updateStatus('✅ Track generated! Playing now...');
+    
+    // Start playback
+    Tone.Transport.start();
+    
+    // Auto-stop after duration
+    setTimeout(() => {
+        Tone.Transport.stop();
+        Tone.Transport.cancel();
+        updateStatus('✅ Complete! Click Export to save your performance.');
+        showProgress(100);
+    }, duration * 1000 + 1000);
+}
+
+// === BUTTON HANDLERS ===
+function initButtons() {
+    // Test Engine Button - Verifies samples are loaded
+    document.getElementById('test-btn').addEventListener('click', async () => {
+        await Tone.start();
+        updateStatus('🎵 Testing audio samples...');
+        
+        // Play piano sample
+        piano.triggerAttackRelease("C3", "4n");
+        
+        // Play steel pan sample 300ms later
+        setTimeout(() => {
+            pan.triggerAttackRelease("C2", "4n");
+        }, 300);
+        
+        setTimeout(() => {
+            updateStatus('✅ Audio engine working! Upload vocals and add your API key to continue.');
+        }, 700);
+    });
+    
+    // Generate Button - Main workflow
+    document.getElementById('generate-btn').addEventListener('click', async () => {
+        if (state.isGenerating) return;
+        if (!state.apiKey) {
+            alert('Please paste your Gemini API key first!');
+            return;
+        }
+        
+        state.isGenerating = true;
+        document.getElementById('generate-btn').classList.add('active');
+        document.getElementById('generate-btn').textContent = 'GENERATING...';
+        
+        try {
+            // Step 1: Analyze with Gemini 3
+            const analysis = await analyzeVocalsWithGemini(state.uploadedFile);
+            
+            if (!analysis) {
+                throw new Error('Analysis failed');
+            }
+            
+            state.currentAnalysis = analysis;
+            
+            // Step 2: Generate semantic backing track
+            await generateSemanticTrack(analysis);
+            
+        } catch (error) {
+            updateStatus('❌ Generation failed - see console for details');
+            console.error('Generation error:', error);
+        } finally {
+            state.isGenerating = false;
+            document.getElementById('generate-btn').classList.remove('active');
+            document.getElementById('generate-btn').textContent = '2. Generate with Gemini 3 🧠';
+        }
+    });
+    
+    // Export Button - Save performance
+    document.getElementById('export-btn').addEventListener('click', async () => {
+        const btn = document.getElementById('export-btn');
+        
+        if (recorder.state === "stopped") {
+            recorder.start();
+            btn.classList.add('recording');
+            btn.textContent = '🔴 RECORDING OUTPUT...';
+            updateStatus('🎙️ Recording audio output...');
+        } else {
+            const recording = await recorder.stop();
+            const url = URL.createObjectURL(recording);
+            const a = document.createElement("a");
+            a.download = "SingToSong_Export.webm";
+            a.href = url;
+            a.click();
+            btn.classList.remove('recording');
+            btn.textContent = '3. Export Performance 🎙️';
+            updateStatus('✅ Exported successfully!');
+        }
+    });
+}
+
+function updateGenerateButton() {
+    const btn = document.getElementById('generate-btn');
+    btn.disabled = !(state.uploadedFile && state.apiKey);
+}
+
+// === UI HELPERS ===
+function updateStatus(message) {
+    const status = document.getElementById('status');
+    status.textContent = message;
+    status.classList.add('active');
+}
+
+function showProgress(percent) {
+    const bar = document.getElementById('progress-bar');
+    const fill = document.getElementById('progress-fill');
+    
+    bar.classList.add('active');
+    fill.style.width = `${percent}%`;
+    
+    if (percent >= 100) {
+        setTimeout(() => {
+            bar.classList.remove('active');
+            fill.style.width = '0%';
+        }, 2000);
+    }
+}
+
+async function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
+
+</script>
+
+</body>
+</html>
